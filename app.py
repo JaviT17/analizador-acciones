@@ -176,7 +176,16 @@ if not analizar:
     st.stop()
 
 with st.spinner("Cargando datos de mercado..."):
-    ticker = yf.Ticker(ticker_input)
+    import requests
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+    })
+    ticker = yf.Ticker(ticker_input, session=session)
     info = ticker.info
     hist = ticker.history(period="1y")
     cashflow = ticker.cashflow
