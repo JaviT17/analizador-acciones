@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
 
 st.set_page_config(
     page_title="StockAnalyzer Pro",
@@ -20,49 +19,65 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .metric-card .label { font-size: 11px; color: #8892B0; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
 .metric-card .value { font-size: 22px; font-weight: 600; color: #E6F1FF; }
 .metric-card .sub { font-size: 11px; color: #8892B0; margin-top: 4px; }
+.score-card { background: #1A1D2E; border: 1px solid #2D3561; border-radius: 16px; padding: 2rem; text-align: center; }
 [data-testid="stMetricValue"] { font-size: 20px !important; font-weight: 600 !important; }
 [data-testid="stMetricLabel"] { font-size: 11px !important; color: #8892B0 !important; text-transform: uppercase; letter-spacing: 1px; }
 </style>
 """, unsafe_allow_html=True)
 
 try:
-    AV_KEY = st.secrets["AV_API_KEY"]
+    FMP_KEY = st.secrets["FMP_API_KEY"]
 except:
-    AV_KEY = "demo"
+    FMP_KEY = "demo"
 
-AV_BASE = "https://www.alphavantage.co/query"
+FMP_BASE = "https://financialmodelingprep.com/api/v3"
 
-def av_get(params):
-    params["apikey"] = AV_KEY
+def fmp_get(endpoint, params={}):
+    params["apikey"] = FMP_KEY
     try:
-        r = requests.get(AV_BASE, params=params, timeout=15)
-        return r.json()
+        r = requests.get(FMP_BASE + endpoint, params=params, timeout=15)
+        data = r.json()
+        if isinstance(data, dict) and "Error Message" in data:
+            return None
+        return data
     except:
-        return {}
+        return None
 
 @st.cache_data(ttl=900)
 def get_quote(ticker):
-    return av_get({"function": "GLOBAL_QUOTE", "symbol": ticker})
+    return fmp_get("/quote/" + ticker)
 
 @st.cache_data(ttl=3600)
-def get_overview(ticker):
-    return av_get({"function": "OVERVIEW", "symbol": ticker})
+def get_profile(ticker):
+    return fmp_get("/profile/" + ticker)
 
 @st.cache_data(ttl=3600)
-def get_income(ticker):
-    return av_get({"function": "INCOME_STATEMENT", "symbol": ticker})
+def get_ratios(ticker):
+    return fmp_get("/ratios-ttm/" + ticker)
 
 @st.cache_data(ttl=3600)
 def get_cashflow(ticker):
-    return av_get({"function": "CASH_FLOW", "symbol": ticker})
+    return fmp_get("/cash-flow-statement/" + ticker, {"limit": 5})
+
+@st.cache_data(ttl=3600)
+def get_income(ticker):
+    return fmp_get("/income-statement/" + ticker, {"limit": 5})
+
+@st.cache_data(ttl=3600)
+def get_balance(ticker):
+    return fmp_get("/balance-sheet-statement/" + ticker, {"limit": 1})
 
 @st.cache_data(ttl=3600)
 def get_history(ticker):
-    return av_get({"function": "TIME_SERIES_WEEKLY", "symbol": ticker})
+    return fmp_get("/historical-price-full/" + ticker, {"serietype": "line"})
 
 @st.cache_data(ttl=3600)
-def search_ticker(query):
-    return av_get({"function": "SYMBOL_SEARCH", "keywords": query})
+def get_analyst(ticker):
+    return fmp_get("/analyst-stock-recommendations/" + ticker, {"limit": 1})
+
+@st.cache_data(ttl=3600)
+def search_company(query):
+    return fmp_get("/search", {"query": query, "limit": 10})
 
 if "ticker_seleccionado" not in st.session_state:
     st.session_state.ticker_seleccionado = "AAPL"
@@ -88,30 +103,26 @@ with col_btn:
 
 if busqueda:
     with st.spinner("Buscando..."):
-        data = search_ticker(busqueda)
-        matches = data.get("bestMatches", [])
-        if matches:
+        results = search_company(busqueda)
+        if results:
             st.markdown("**Resultados:**")
             cols = st.columns(4)
-            for i, m in enumerate(matches[:8]):
-                sym = m.get("1. symbol", "")
-                nombre_q = m.get("2. name", "")
-                region = m.get("4. region", "")
-                tipo = m.get("3. type", "")
-                if tipo != "Equity":
-                    continue
+            for i, m in enumerate(results[:8]):
+                sym = m.get("symbol", "")
+                nombre_q = m.get("name", "")
+                exchange = m.get("stockExchange", "")
                 with cols[i % 4]:
                     st.markdown(
                         "<div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:10px;padding:0.6rem 0.8rem;margin-bottom:8px'>"
                         "<div style='font-size:14px;font-weight:600;color:#6C63FF'>" + sym + "</div>"
                         "<div style='font-size:11px;color:#CCD6F6;margin-top:2px'>" + nombre_q[:28] + "</div>"
-                        "<div style='font-size:10px;color:#8892B0;margin-top:2px'>" + region + "</div>"
+                        "<div style='font-size:10px;color:#8892B0;margin-top:2px'>" + exchange + "</div>"
                         "</div>", unsafe_allow_html=True)
                     if st.button("Usar", key="btn_" + sym, use_container_width=True):
                         st.session_state.ticker_seleccionado = sym
                         st.rerun()
         else:
-            st.warning("Sin resultados. Prueba con el ticker directamente.")
+            st.warning("Sin resultados. Prueba el ticker directamente.")
 
 with st.expander("Guia de sufijos por mercado"):
     st.markdown("""
@@ -133,79 +144,100 @@ if not analizar:
     <div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:16px;padding:3rem;text-align:center;margin-top:2rem'>
         <div style='font-size:48px;margin-bottom:1rem'>📊</div>
         <div style='font-size:18px;font-weight:600;color:#E6F1FF;margin-bottom:0.5rem'>Introduce un ticker y pulsa Analizar</div>
-        <div style='font-size:13px;color:#8892B0;margin-bottom:1.5rem'>Datos en tiempo real via Alpha Vantage · Cobertura global</div>
+        <div style='font-size:13px;color:#8892B0;margin-bottom:1.5rem'>Datos en tiempo real via Financial Modeling Prep · 50+ bolsas mundiales</div>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
 
 with st.spinner("Cargando datos..."):
-    quote_data = get_quote(ticker_input)
-    overview_data = get_overview(ticker_input)
-    history_data = get_history(ticker_input)
-    cashflow_data = get_cashflow(ticker_input)
-    income_data = get_income(ticker_input)
+    quote_list  = get_quote(ticker_input)
+    profile_list = get_profile(ticker_input)
+    ratios_list  = get_ratios(ticker_input)
+    cf_list      = get_cashflow(ticker_input)
+    inc_list     = get_income(ticker_input)
+    bal_list     = get_balance(ticker_input)
+    hist_data    = get_history(ticker_input)
+    analyst_list = get_analyst(ticker_input)
 
-q = quote_data.get("Global Quote", {})
-ov = overview_data
-
-if not q or not q.get("05. price"):
+if not quote_list or not profile_list:
     st.error("No se encontraron datos para **" + ticker_input + "**. Verifica el ticker.")
-    if AV_KEY == "demo":
-        st.warning("Estas usando la clave demo. Solo funciona con IBM, AAPL y MSFT. Configura tu clave en Streamlit Secrets.")
+    if FMP_KEY == "demo":
+        st.warning("Estas usando la clave demo. Registrate en financialmodelingprep.com para obtener tu clave gratuita.")
     st.stop()
 
-precio       = float(q.get("05. price", 0))
-cambio_abs   = float(q.get("09. % change", "0").replace("%", ""))
-prev_close   = float(q.get("08. previous close", precio))
-nombre       = ov.get("Name", ticker_input)
-sector       = ov.get("Sector", "")
-pais         = ov.get("Country", "")
-moneda       = ov.get("Currency", "USD")
-per          = float(ov.get("PERatio", 0)) or None
-per_fwd      = float(ov.get("ForwardPE", 0)) or None
-pb           = float(ov.get("PriceToBookRatio", 0)) or None
-ps           = float(ov.get("PriceToSalesRatioTTM", 0)) or None
-roe          = float(ov.get("ReturnOnEquityTTM", 0)) or None
-roa          = float(ov.get("ReturnOnAssetsTTM", 0)) or None
-margen       = float(ov.get("ProfitMargin", 0)) or None
-margen_bruto = float(ov.get("GrossProfitTTM", 0)) or None
-deuda_cap    = float(ov.get("DebtToEquityRatio", 0)) or None
-beta         = float(ov.get("Beta", 0)) or None
-cap          = float(ov.get("MarketCapitalization", 0)) or None
-w52h         = float(ov.get("52WeekHigh", 0)) or None
-w52l         = float(ov.get("52WeekLow", 0)) or None
-eps          = float(ov.get("EPS", 0)) or None
-eps_fwd      = None
-target       = float(ov.get("AnalystTargetPrice", 0)) or None
-div_yield    = float(ov.get("DividendYield", 0)) or None
-media50      = float(ov.get("50DayMovingAverage", 0)) or None
-media200     = float(ov.get("200DayMovingAverage", 0)) or None
-cambio_pct   = cambio_abs
+q  = quote_list[0] if quote_list else {}
+p  = profile_list[0] if profile_list else {}
+r  = ratios_list[0] if ratios_list else {}
+an = analyst_list[0] if analyst_list else {}
 
-weekly = history_data.get("Weekly Time Series", {})
-hist_dates = sorted(weekly.keys(), reverse=True)[:52]
-hist_prices = [float(weekly[d]["4. close"]) for d in hist_dates]
-hist_dates_sorted = list(reversed(hist_dates))
-hist_prices_sorted = list(reversed(hist_prices))
-
-annual_reports = income_data.get("annualReports", [])
-fcf_data = []
-cf_annual = cashflow_data.get("annualReports", [])
-for rep in cf_annual[:5]:
+def safe_float(val, default=None):
     try:
-        op = float(rep.get("operatingCashflow", 0))
-        capex = float(rep.get("capitalExpenditures", 0))
-        fcf = op - abs(capex)
-        fcf_data.append({"year": rep.get("fiscalDateEnding", "")[:4], "fcf": fcf, "op": op})
+        v = float(val)
+        return v if v != 0 else default
     except:
-        pass
+        return default
 
-if eps and eps > 0 and per_fwd and per:
-    g = max(0.03, min(0.25, (per - per_fwd) / per * 0.5 + 0.05))
-else:
+precio        = safe_float(q.get("price"), 0)
+cambio_pct    = safe_float(q.get("changesPercentage"), 0)
+nombre        = p.get("companyName", ticker_input)
+sector        = p.get("sector", "")
+pais          = p.get("country", "")
+moneda        = p.get("currency", "USD")
+per           = safe_float(r.get("peRatioTTM"))
+pb            = safe_float(r.get("priceToBookRatioTTM"))
+ps            = safe_float(r.get("priceToSalesRatioTTM"))
+roe           = safe_float(r.get("returnOnEquityTTM"))
+roa           = safe_float(r.get("returnOnAssetsTTM"))
+margen        = safe_float(r.get("netProfitMarginTTM"))
+margen_bruto  = safe_float(r.get("grossProfitMarginTTM"))
+deuda_cap     = safe_float(r.get("debtEquityRatioTTM"))
+beta          = safe_float(p.get("beta"))
+cap           = safe_float(q.get("marketCap"))
+w52h          = safe_float(q.get("yearHigh"))
+w52l          = safe_float(q.get("yearLow"))
+eps           = safe_float(q.get("eps"))
+target        = safe_float(p.get("dcfDiff")) 
+price_target  = safe_float(an.get("priceTarget")) if an else None
+media50       = safe_float(p.get("priceAvg50") or q.get("priceAvg50"))
+media200      = safe_float(p.get("priceAvg200") or q.get("priceAvg200"))
+vol           = safe_float(q.get("volume"))
+avg_vol       = safe_float(q.get("avgVolume"))
+fcf_company   = safe_float(p.get("lastDiv"))
+
+hist_prices = []
+hist_dates  = []
+if hist_data and "historical" in hist_data:
+    historical = hist_data["historical"][:52]
+    historical = list(reversed(historical))
+    hist_dates  = [h["date"] for h in historical]
+    hist_prices = [h["close"] for h in historical]
+
+fcf_hist = []
+if cf_list:
+    for rep in cf_list[:5]:
+        try:
+            fcf = safe_float(rep.get("freeCashFlow"))
+            op  = safe_float(rep.get("operatingCashFlow"))
+            yr  = rep.get("date", "")[:4]
+            if fcf is not None:
+                fcf_hist.append({"year": yr, "fcf": fcf, "op": op or 0})
+        except:
+            pass
+
+if eps and eps > 0:
     g = 0.07
-intrinseco = eps * (8.5 + 2 * g * 100) if eps and eps > 0 else None
-diff_pct = ((precio - intrinseco) / intrinseco * 100) if intrinseco else None
+    if per:
+        fwd_per_est = per * 0.9
+        g = max(0.03, min(0.25, (per - fwd_per_est) / per * 0.5 + 0.05))
+    intrinseco = eps * (8.5 + 2 * g * 100)
+else:
+    intrinseco = None
+
+dcf_value = safe_float(p.get("dcf"))
+if dcf_value and dcf_value > 0:
+    intrinseco = dcf_value
+
+diff_pct = ((precio - intrinseco) / intrinseco * 100) if intrinseco and precio else None
 
 def sc_valoracion(per, pb):
     pts = 10
@@ -270,25 +302,16 @@ def sc_dcf(precio, intrinseco):
 s1 = sc_valoracion(per, pb)
 s2 = sc_calidad(roe, margen)
 s3 = sc_financiera(deuda_cap)
-s4 = sc_momentum(precio, w52h, w52l, target, media50, media200)
+s4 = sc_momentum(precio, w52h, w52l, price_target, media50, media200)
 s5 = sc_dcf(precio, intrinseco)
 total = s1 + s2 + s3 + s4 + s5
 
 if total >= 65:
-    rec = "COMPRAR"
-    color_final = "#4ADE80"
-    bg_final = "rgba(74,222,128,0.1)"
-    border_final = "#4ADE80"
+    rec = "COMPRAR"; color_final = "#4ADE80"; bg_final = "rgba(74,222,128,0.1)"; border_final = "#4ADE80"
 elif total >= 40:
-    rec = "MANTENER"
-    color_final = "#FBBF24"
-    bg_final = "rgba(251,191,36,0.1)"
-    border_final = "#FBBF24"
+    rec = "MANTENER"; color_final = "#FBBF24"; bg_final = "rgba(251,191,36,0.1)"; border_final = "#FBBF24"
 else:
-    rec = "VENDER"
-    color_final = "#F87171"
-    bg_final = "rgba(248,113,113,0.1)"
-    border_final = "#F87171"
+    rec = "VENDER"; color_final = "#F87171"; bg_final = "rgba(248,113,113,0.1)"; border_final = "#F87171"
 
 alertas = []
 
@@ -301,7 +324,7 @@ if intrinseco and diff_pct is not None:
     elif diff_pct < -15:
         alertas.append({"tipo": "POSIBLE OPORTUNIDAD", "color": "#34D399", "bg": "rgba(52,211,153,0.08)", "icono": "🟡",
             "titulo": "Precio " + str(round(abs(diff_pct))) + "% por debajo del valor fundamental",
-            "que_hacer": "Hay margen de seguridad. Considera una posicion parcial.",
+            "que_hacer": "Hay margen de seguridad. Considera una posicion parcial y espera confirmacion.",
             "por_que": "Intrinseco (" + moneda + " " + str(round(intrinseco, 2)) + ") supera al precio (" + moneda + " " + str(round(precio, 2)) + ")."})
     elif diff_pct > 30:
         alertas.append({"tipo": "PRECIO MUY ELEVADO", "color": "#F87171", "bg": "rgba(248,113,113,0.08)", "icono": "🔴",
@@ -317,7 +340,7 @@ if intrinseco and diff_pct is not None:
 if w52h and precio > w52h * 0.95:
     alertas.append({"tipo": "PRECIO EN MAXIMOS ANUALES", "color": "#F87171", "bg": "rgba(248,113,113,0.08)", "icono": "🔴",
         "titulo": "Precio cerca del maximo de 52 semanas",
-        "que_hacer": "Prudencia. No es momento de entrada salvo que el fundamental lo justifique.",
+        "que_hacer": "Prudencia. No es buen momento de entrada salvo que el fundamental lo justifique.",
         "por_que": "A " + moneda + " " + str(round(precio, 2)) + " solo queda un " + str(round((w52h-precio)/w52h*100, 1)) + "% para el maximo anual."})
 
 if w52l and precio < w52l * 1.10 and s2 >= 14:
@@ -329,7 +352,7 @@ if w52l and precio < w52l * 1.10 and s2 >= 14:
 if deuda_cap and deuda_cap > 3:
     alertas.append({"tipo": "RIESGO FINANCIERO ELEVADO", "color": "#F87171", "bg": "rgba(248,113,113,0.08)", "icono": "🔴",
         "titulo": "Nivel de deuda muy por encima de la media",
-        "que_hacer": "Incorpora este riesgo en tu decision. La deuda alta es un multiplicador de riesgos.",
+        "que_hacer": "Incorpora este riesgo. La deuda alta es un multiplicador de riesgos en entornos de tipos altos.",
         "por_que": "Deuda/Capital: " + str(round(deuda_cap, 2)) + "x. Por encima de 2x empieza a ser preocupante."})
 
 if media50 and media200:
@@ -351,8 +374,7 @@ cambio_arrow = "▲" if cambio_pct >= 0 else "▼"
 st.markdown(
     "<div class='main-header'>"
     "<div style='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem'>"
-    "<div>"
-    "<div style='font-size:24px;font-weight:700;color:#E6F1FF;margin-bottom:4px'>" + nombre + "</div>"
+    "<div><div style='font-size:24px;font-weight:700;color:#E6F1FF;margin-bottom:4px'>" + nombre + "</div>"
     "<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap'>"
     "<span style='background:#16213E;border:1px solid #2D3561;border-radius:20px;padding:3px 12px;font-size:12px;color:#8892B0'>" + ticker_input + "</span>"
     + ("<span style='background:#16213E;border:1px solid #2D3561;border-radius:20px;padding:3px 12px;font-size:12px;color:#8892B0'>" + sector + "</span>" if sector else "")
@@ -383,11 +405,12 @@ tab1, tab2, tab3, tab4 = st.tabs(["Resumen", "Valor fundamental", "Valor de merc
 with tab1:
     metrics = [
         ("Precio actual", moneda + " " + str(round(precio, 2)), ""),
-        ("Valor intrinseco est.", moneda + " " + str(round(intrinseco, 2)) if intrinseco else "N/D", "Formula Graham"),
+        ("Valor intrinseco", moneda + " " + str(round(intrinseco, 2)) if intrinseco else "N/D", "DCF / Graham"),
         ("Diferencia", (("+" if diff_pct >= 0 else "") + str(round(diff_pct, 1)) + "%") if diff_pct is not None else "N/D", "Precio vs fundamental"),
         ("PER", str(round(per, 1)) + "x" if per else "N/D", "< 15 barato  > 30 caro"),
         ("Cap. bursatil", moneda + " " + str(round(cap/1e9, 1)) + "B" if cap else "N/D", ""),
-        ("Obj. analistas", moneda + " " + str(round(target, 2)) if target else "N/D", (("+" if target >= precio else "") + str(round((target-precio)/precio*100, 1)) + "% potencial") if target else ""),
+        ("Obj. analistas", moneda + " " + str(round(price_target, 2)) if price_target else "N/D",
+         (("+" if price_target >= precio else "") + str(round((price_target-precio)/precio*100, 1)) + "% potencial") if price_target else ""),
     ]
     cols = st.columns(6)
     for i, (label, value, sub) in enumerate(metrics):
@@ -399,14 +422,13 @@ with tab1:
                 + "</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
-
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown("<div style='font-size:14px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Evolucion del precio — 52 semanas</div>", unsafe_allow_html=True)
-        if hist_prices_sorted:
+        if hist_prices:
             fig = go.Figure()
             fig.add_trace(go.Scatter(
-                x=hist_dates_sorted, y=hist_prices_sorted,
+                x=hist_dates, y=hist_prices,
                 line=dict(color="#6C63FF", width=2),
                 fill="tozeroy", fillcolor="rgba(108,99,255,0.06)",
                 name="Precio", hovertemplate=moneda + " %{y:.2f}<extra></extra>"
@@ -415,9 +437,9 @@ with tab1:
                 fig.add_hline(y=intrinseco, line_dash="dash", line_color="#4ADE80", line_width=1,
                               annotation_text="Intrinseco " + str(round(intrinseco, 0)),
                               annotation_font_color="#4ADE80", annotation_font_size=11)
-            if target:
-                fig.add_hline(y=target, line_dash="dot", line_color="#FBBF24", line_width=1,
-                              annotation_text="Objetivo " + str(round(target, 0)),
+            if price_target:
+                fig.add_hline(y=price_target, line_dash="dot", line_color="#FBBF24", line_width=1,
+                              annotation_text="Objetivo " + str(round(price_target, 0)),
                               annotation_font_color="#FBBF24", annotation_font_size=11)
             if media200:
                 fig.add_hline(y=media200, line_dash="dot", line_color="#8892B0", line_width=1,
@@ -434,8 +456,9 @@ with tab1:
 
     with col2:
         st.markdown("<div style='font-size:14px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Posicion en rango anual</div>", unsafe_allow_html=True)
-        if w52h and w52l:
-            pos_pct = round((precio - w52l) / (w52h - w52l) * 100) if w52h != w52l else 50
+        if w52h and w52l and w52h != w52l:
+            pos_pct = round((precio - w52l) / (w52h - w52l) * 100)
+            pos_pct = max(0, min(100, pos_pct))
             color_pos = "#4ADE80" if pos_pct < 40 else "#F87171" if pos_pct > 80 else "#FBBF24"
             st.markdown(
                 "<div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:12px;padding:1.25rem'>"
@@ -454,7 +477,7 @@ with tab1:
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:14px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Comparativa de precios clave</div>", unsafe_allow_html=True)
     labels_bar = ["Min 52s", "Precio actual", "Intrinseco", "Obj. analistas", "Max 52s"]
-    values_bar = [w52l, precio, intrinseco, target, w52h]
+    values_bar = [w52l, precio, intrinseco, price_target, w52h]
     colors_bar = ["#475569", "#6C63FF", "#4ADE80", "#FBBF24", "#F87171"]
     fig2 = go.Figure(go.Bar(
         x=labels_bar, y=values_bar, marker_color=colors_bar,
@@ -477,17 +500,15 @@ with tab2:
     with col1:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Valoracion</div>", unsafe_allow_html=True)
         df_val = pd.DataFrame({
-            "Metrica": ["PER trailing", "PER forward", "P / Book", "P / Ventas"],
+            "Metrica": ["PER", "P / Book", "P / Ventas"],
             "Valor": [
                 str(round(per, 2)) + "x" if per else "N/D",
-                str(round(per_fwd, 2)) + "x" if per_fwd else "N/D",
                 str(round(pb, 2)) + "x" if pb else "N/D",
                 str(round(ps, 2)) + "x" if ps else "N/D",
             ],
-            "Referencia": ["< 15 barato · > 30 caro", "< 15 barato · > 30 caro", "< 1.5 barato · > 6 caro", "Depende del sector"],
+            "Referencia": ["< 15 barato · > 30 caro", "< 1.5 barato · > 6 caro", "Depende del sector"],
             "Senal": [
                 "Barato" if per and per < 15 else ("Caro" if per and per > 30 else "Normal") if per else "—",
-                "Barato" if per_fwd and per_fwd < 15 else ("Caro" if per_fwd and per_fwd > 30 else "Normal") if per_fwd else "—",
                 "Barato" if pb and pb < 1.5 else ("Caro" if pb and pb > 6 else "Normal") if pb else "—",
                 "—"
             ]
@@ -496,65 +517,72 @@ with tab2:
 
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.75rem'>Rentabilidad</div>", unsafe_allow_html=True)
         df_rent = pd.DataFrame({
-            "Metrica": ["ROE", "ROA", "Margen neto"],
+            "Metrica": ["ROE", "ROA", "Margen neto", "Margen bruto"],
             "Valor": [
                 str(round(roe*100, 1)) + "%" if roe else "N/D",
                 str(round(roa*100, 1)) + "%" if roa else "N/D",
                 str(round(margen*100, 1)) + "%" if margen else "N/D",
+                str(round(margen_bruto*100, 1)) + "%" if margen_bruto else "N/D",
             ],
-            "Referencia": ["> 15% bueno", "> 10% bueno", "> 15% bueno"],
+            "Referencia": ["> 15% bueno", "> 10% bueno", "> 15% bueno", "> 30% solido"],
             "Senal": [
                 "Bueno" if roe and roe > 0.15 else ("Bajo" if roe and roe < 0.05 else "Normal") if roe else "—",
                 "Bueno" if roa and roa > 0.10 else ("Bajo" if roa and roa < 0.03 else "Normal") if roa else "—",
                 "Bueno" if margen and margen > 0.15 else ("Bajo" if margen and margen < 0.05 else "Normal") if margen else "—",
+                "—"
             ]
         })
         st.dataframe(df_rent, hide_index=True, use_container_width=True)
 
     with col2:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Salud financiera</div>", unsafe_allow_html=True)
+        bal = bal_list[0] if bal_list else {}
+        total_debt = safe_float(bal.get("totalDebt"))
+        total_cash = safe_float(bal.get("cashAndCashEquivalents"))
+        current_ratio = safe_float(bal.get("currentRatio") or r.get("currentRatioTTM"))
+        quick_ratio = safe_float(r.get("quickRatioTTM"))
         df_fin = pd.DataFrame({
-            "Metrica": ["Deuda/Capital", "Beta", "Max 52s", "Min 52s", "MA 50d", "MA 200d"],
+            "Metrica": ["Deuda/Capital", "Quick Ratio", "Current Ratio", "Deuda total", "Efectivo"],
             "Valor": [
                 str(round(deuda_cap, 2)) + "x" if deuda_cap else "N/D",
-                str(round(beta, 2)) if beta else "N/D",
-                moneda + " " + str(round(w52h, 2)) if w52h else "N/D",
-                moneda + " " + str(round(w52l, 2)) if w52l else "N/D",
-                moneda + " " + str(round(media50, 2)) if media50 else "N/D",
-                moneda + " " + str(round(media200, 2)) if media200 else "N/D",
+                str(round(quick_ratio, 2)) if quick_ratio else "N/D",
+                str(round(current_ratio, 2)) if current_ratio else "N/D",
+                moneda + " " + str(round(total_debt/1e9, 1)) + "B" if total_debt else "N/D",
+                moneda + " " + str(round(total_cash/1e9, 1)) + "B" if total_cash else "N/D",
             ],
             "Senal": [
                 "Baja" if deuda_cap and deuda_cap < 0.5 else ("Alta" if deuda_cap and deuda_cap > 3 else "Media") if deuda_cap else "—",
-                "Menos volatil" if beta and beta < 1 else ("Mas volatil" if beta else "—"),
-                "—", "—", "—", "—"
+                "OK" if quick_ratio and quick_ratio > 1 else ("Bajo" if quick_ratio else "—"),
+                "OK" if current_ratio and current_ratio > 1.5 else ("Bajo" if current_ratio else "—"),
+                "—", "—"
             ]
         })
         st.dataframe(df_fin, hide_index=True, use_container_width=True)
 
-        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.75rem'>Valor intrinseco estimado</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.75rem'>Valor intrinseco (DCF)</div>", unsafe_allow_html=True)
         if intrinseco:
             diff_color = "#4ADE80" if diff_pct and diff_pct < 0 else "#F87171"
             st.markdown(
                 "<div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:12px;padding:1.25rem'>"
                 "<div style='display:grid;grid-template-columns:1fr 1fr;gap:1rem;text-align:center'>"
-                "<div><div style='font-size:11px;color:#8892B0;margin-bottom:4px'>INTRINSECO (GRAHAM)</div>"
+                "<div><div style='font-size:11px;color:#8892B0;margin-bottom:4px'>VALOR DCF</div>"
                 "<div style='font-size:22px;font-weight:700;color:#4ADE80'>" + moneda + " " + str(round(intrinseco, 2)) + "</div></div>"
                 "<div><div style='font-size:11px;color:#8892B0;margin-bottom:4px'>DIFERENCIA</div>"
                 "<div style='font-size:22px;font-weight:700;color:" + diff_color + "'>"
                 + (("+" if diff_pct >= 0 else "") + str(round(diff_pct, 1)) + "%") + "</div></div>"
                 "</div>"
                 "<div style='margin-top:1rem;font-size:12px;color:#8892B0;border-top:1px solid #2D3561;padding-top:0.75rem'>"
-                + ("El precio esta por DEBAJO del valor real — posible oportunidad" if diff_pct and diff_pct < 0 else "El precio esta por ENCIMA del valor real — mercado lo sobrevalora") +
+                + ("Precio por DEBAJO del valor real — posible oportunidad" if diff_pct and diff_pct < 0 else "Precio por ENCIMA del valor real — mercado lo sobrevalora") +
                 "</div></div>", unsafe_allow_html=True)
         else:
-            st.info("EPS no disponible para calcular el valor intrinseco.")
+            st.info("Datos insuficientes para calcular el valor intrinseco.")
 
-    if fcf_data:
+    if fcf_hist:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1.5rem 0 0.75rem'>Flujo de caja historico</div>", unsafe_allow_html=True)
         fig3 = go.Figure()
-        anos = [d["year"] for d in fcf_data]
-        fcfs = [d["fcf"]/1e9 for d in fcf_data]
-        ops = [d["op"]/1e9 for d in fcf_data]
+        anos = [d["year"] for d in fcf_hist]
+        fcfs = [d["fcf"]/1e9 for d in fcf_hist]
+        ops  = [d["op"]/1e9 for d in fcf_hist]
         fig3.add_trace(go.Bar(x=anos, y=fcfs, name="Free Cash Flow", marker_color="#6C63FF", opacity=0.9))
         fig3.add_trace(go.Bar(x=anos, y=ops, name="Cash Flow Operativo", marker_color="#34D399", opacity=0.7))
         fig3.update_layout(
@@ -587,6 +615,34 @@ with tab3:
                 + ("<div style='font-size:11px;color:" + color_sub + ";margin-top:4px'>" + sub + "</div>" if sub else "")
                 + "</div>", unsafe_allow_html=True)
 
+    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Volumen de negociacion</div>", unsafe_allow_html=True)
+        vol_ratio = round(vol / avg_vol, 2) if avg_vol and vol else 0
+        vol_color = "#4ADE80" if vol_ratio > 1.5 else "#FBBF24" if vol_ratio > 0.8 else "#F87171"
+        st.markdown(
+            "<div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:12px;padding:1.25rem'>"
+            "<div style='display:grid;grid-template-columns:1fr 1fr;gap:1rem;text-align:center'>"
+            "<div><div style='font-size:11px;color:#8892B0;margin-bottom:4px'>VOLUMEN HOY</div>"
+            "<div style='font-size:20px;font-weight:600;color:#E6F1FF'>" + (str(round(vol/1e6, 1)) + "M" if vol else "N/D") + "</div></div>"
+            "<div><div style='font-size:11px;color:#8892B0;margin-bottom:4px'>VOLUMEN MEDIO</div>"
+            "<div style='font-size:20px;font-weight:600;color:#E6F1FF'>" + (str(round(avg_vol/1e6, 1)) + "M" if avg_vol else "N/D") + "</div></div>"
+            "</div>"
+            "<div style='margin-top:1rem;font-size:12px;color:#8892B0;border-top:1px solid #2D3561;padding-top:0.75rem'>"
+            "Ratio vs media: <span style='color:" + vol_color + ";font-weight:600'>" + str(vol_ratio) + "x</span>"
+            + (" — Volumen inusualmente alto" if vol_ratio > 2 else " — Volumen normal" if vol_ratio > 0.8 else " — Volumen bajo") +
+            "</div></div>", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Descripcion de la empresa</div>", unsafe_allow_html=True)
+        desc = p.get("description", "")
+        if desc:
+            st.markdown(
+                "<div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:12px;padding:1.25rem;font-size:12px;color:#8892B0;line-height:1.7;max-height:150px;overflow:hidden'>"
+                + desc[:400] + "..."
+                + "</div>", unsafe_allow_html=True)
+
     alertas_mkt = [a for a in alertas if any(x in a["tipo"] for x in ["MAXIMOS", "MINIMOS", "CROSS", "CAIDA"])]
     if alertas_mkt:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.5rem'>Alertas de mercado</div>", unsafe_allow_html=True)
@@ -610,9 +666,9 @@ with tab4:
             "<span style='font-size:18px;font-weight:700;color:" + color_final + "'>" + rec + "</span>"
             "</div>"
             "<div style='margin-top:1.5rem;padding-top:1rem;border-top:1px solid #2D3561;font-size:12px;color:#8892B0;line-height:1.8;text-align:left'>"
-            "<span style='color:#4ADE80'>●</span>  65 – 100 &nbsp; Comprar<br>"
-            "<span style='color:#FBBF24'>●</span>  40 – 64 &nbsp; Mantener<br>"
-            "<span style='color:#F87171'>●</span>  0 – 39 &nbsp;&nbsp; Vender"
+            "<span style='color:#4ADE80'>●</span>  65–100 &nbsp; Comprar<br>"
+            "<span style='color:#FBBF24'>●</span>  40–64 &nbsp; Mantener<br>"
+            "<span style='color:#F87171'>●</span>  0–39 &nbsp;&nbsp; Vender"
             "</div></div>", unsafe_allow_html=True)
 
     with col2:
@@ -626,7 +682,7 @@ with tab4:
              "Deuda/Capital: " + str(round(deuda_cap, 2)) + "x" if deuda_cap else "Datos insuficientes"),
             ("Momentum de precio", "Posicion en rango 52s y vs objetivo analistas", s4,
              "Rango 52s: " + str(round(w52l, 0)) + " — " + str(round(w52h, 0)) if w52l and w52h else "Datos insuficientes"),
-            ("Brecha precio vs intrinseco", "Diferencia entre precio de mercado y valor calculado", s5,
+            ("Brecha precio vs intrinseco", "Diferencia entre precio de mercado y valor DCF", s5,
              "Intrinseco: " + moneda + " " + str(round(intrinseco, 2)) + " · Precio: " + moneda + " " + str(round(precio, 2)) if intrinseco else "EPS no disponible"),
         ]
         for nombre_c, descripcion, pts, detalle in criterios:
@@ -637,7 +693,8 @@ with tab4:
                 "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>"
                 "<div><div style='font-size:13px;font-weight:600;color:#E6F1FF'>" + nombre_c + "</div>"
                 "<div style='font-size:11px;color:#8892B0'>" + descripcion + "</div></div>"
-                "<div style='font-size:20px;font-weight:700;color:" + color_barra + ";min-width:50px;text-align:right'>" + str(pts) + "<span style='font-size:12px;color:#8892B0'>/20</span></div>"
+                "<div style='font-size:20px;font-weight:700;color:" + color_barra + ";min-width:50px;text-align:right'>"
+                + str(pts) + "<span style='font-size:12px;color:#8892B0'>/20</span></div>"
                 "</div>"
                 "<div style='background:#0F1117;border-radius:4px;height:6px;margin:8px 0'>"
                 "<div style='background:" + color_barra + ";width:" + str(pct) + "%;height:6px;border-radius:4px'></div>"
@@ -646,4 +703,4 @@ with tab4:
                 "</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:11px;color:#475569;text-align:center'>StockAnalyzer Pro · Datos via Alpha Vantage · Solo fines educativos · No constituye asesoramiento financiero</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:11px;color:#475569;text-align:center'>StockAnalyzer Pro · Datos via Financial Modeling Prep · Solo fines educativos · No constituye asesoramiento financiero</div>", unsafe_allow_html=True)
