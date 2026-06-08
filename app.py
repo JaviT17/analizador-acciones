@@ -141,7 +141,12 @@ with st.expander("Guia de sufijos por mercado"):
  
 with st.expander("Debug — Estado de la API (quitar cuando funcione)"):
     st.write("Clave cargada:", FMP_KEY[:8] + "..." if FMP_KEY and FMP_KEY != "demo" else "DEMO — no configurada")
-    test = fmp_get("/quote/AAPL")
+    test_quote = fmp_get("/quote/AAPL")
+    test_profile = fmp_get("/profile/AAPL")  
+    test_search = fmp_get("/search", {"query": "Apple", "limit": 3})
+    st.write("Quote:", test_quote)
+    st.write("Profile:", test_profile)
+    st.write("Search:", test_search)
     st.write("Test AAPL:", test)
  
 if not analizar:
