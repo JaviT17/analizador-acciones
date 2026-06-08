@@ -453,6 +453,21 @@ with tab1:
                 hovermode="x unified", showlegend=False
             )
             st.plotly_chart(fig, use_container_width=True)
+        with st.expander("Como leer este grafico"):
+            st.markdown("""
+- **Linea morada**: precio real de la accion en bolsa cada semana
+- **Linea verde discontinua**: valor intrinseco estimado por DCF/Graham (lo que deberia valer)
+- **Linea amarilla punteada**: precio objetivo medio de los analistas profesionales
+- **Linea gris punteada**: media movil de 200 dias (tendencia de largo plazo)
+
+**La clave esta en la relacion entre la linea morada y la verde:**
+- Precio muy por DEBAJO de la verde → el mercado infravalora la empresa → posible oportunidad
+- Precio muy por ENCIMA de la verde → el mercado sobrevalora la empresa → precaucion
+- Precio cerca de la verde → valoracion justa
+
+Si el precio cruza la MA200 al alza con volumen → señal alcista de largo plazo.
+Si la cruza a la baja → señal bajista de largo plazo.
+            """)
 
     with col2:
         st.markdown("<div style='font-size:14px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Posicion en rango anual</div>", unsafe_allow_html=True)
@@ -494,11 +509,46 @@ with tab1:
     st.plotly_chart(fig2, use_container_width=True)
 
 with tab2:
-    st.markdown("<div style='background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.2);border-radius:10px;padding:0.75rem 1rem;font-size:13px;color:#8892B0;margin-bottom:1rem'>El valor fundamental mide la salud REAL del negocio. Cambia trimestralmente, no cada dia.</div>", unsafe_allow_html=True)
+    st.markdown("<div style='background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.2);border-radius:10px;padding:0.75rem 1rem;font-size:13px;color:#8892B0;margin-bottom:1rem'>El valor fundamental mide la salud REAL del negocio. Estos numeros cambian trimestralmente, no cada dia. Son los que importan para saber si una empresa vale lo que cuesta.</div>", unsafe_allow_html=True)
+
+    with st.expander("Que es el valor fundamental y por que importa"):
+        st.markdown("""
+Mientras el precio de mercado sube y baja cada segundo segun el humor de los inversores,
+el valor fundamental cambia lentamente y refleja la realidad del negocio.
+
+**La idea clave de Benjamin Graham** (mentor de Warren Buffett):
+> "A corto plazo el mercado es una maquina de votar. A largo plazo es una maquina de pesar."
+
+Es decir: a corto plazo gana la popularidad y el miedo. A largo plazo, lo que pesa de verdad
+son los numeros reales. Por eso comparar precio vs fundamental es tan util.
+
+**Cuando el precio esta muy por debajo del fundamental** → el mercado esta siendo irracional
+y hay una oportunidad de compra con margen de seguridad.
+
+**Cuando el precio esta muy por encima** → el mercado descuenta demasiado optimismo
+y el riesgo de correccion es alto.
+        """)
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Valoracion</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Valoracion</div>", unsafe_allow_html=True)
+        with st.expander("Que mide la valoracion"):
+            st.markdown("""
+- **PER (Precio/Beneficio)**: cuantos años de beneficios pagas por la accion.
+  Si el PER es 20x significa que pagas 20 años de beneficios actuales.
+  Menos de 15x suele ser barato. Mas de 30x suele ser caro.
+  Ojo: un PER alto puede estar justificado si la empresa crece muy rapido.
+
+- **P/Book (Precio/Valor contable)**: cuanto pagas vs lo que valen los activos netos.
+  Si P/Book es menor que 1, pagas menos que el valor de los activos → muy barato.
+  Por encima de 6x el mercado paga una prima muy alta sobre los activos reales.
+
+- **P/Ventas**: cuantas veces pagas los ingresos anuales de la empresa.
+  Util para empresas que aun no tienen beneficios (startups, empresas en crecimiento).
+
+- **Regla general**: estos ratios solo tienen sentido comparados con el sector.
+  Un PER de 30x es caro para un banco pero puede ser normal para una tecnologica.
+            """)
         df_val = pd.DataFrame({
             "Metrica": ["PER", "P / Book", "P / Ventas"],
             "Valor": [
@@ -515,7 +565,23 @@ with tab2:
         })
         st.dataframe(df_val, hide_index=True, use_container_width=True)
 
-        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.75rem'>Rentabilidad</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.5rem'>Rentabilidad</div>", unsafe_allow_html=True)
+        with st.expander("Que mide la rentabilidad"):
+            st.markdown("""
+- **ROE (Return on Equity)**: beneficio que genera la empresa por cada euro de capital propio.
+  Por encima del 15% indica que el negocio es eficiente generando valor para el accionista.
+  Por debajo del 5% es una señal de negocio debil o con mucho capital ocioso.
+
+- **ROA (Return on Assets)**: beneficio sobre el total de activos. Mide la eficiencia global.
+  Por encima del 10% es bueno. Muy util para comparar empresas del mismo sector.
+
+- **Margen neto**: de cada 100 euros que ingresa la empresa, cuanto queda como beneficio final.
+  Un margen del 20% significa que de 100 euros vendidos, 20 son beneficio neto.
+  Margenes negativos indican que la empresa pierde dinero con su actividad principal.
+
+- **Margen bruto**: rentabilidad antes de gastos generales. Indica la fortaleza del negocio central.
+  Un margen bruto alto (>40%) suele indicar un negocio con ventaja competitiva (pricing power).
+            """)
         df_rent = pd.DataFrame({
             "Metrica": ["ROE", "ROA", "Margen neto", "Margen bruto"],
             "Valor": [
@@ -535,7 +601,24 @@ with tab2:
         st.dataframe(df_rent, hide_index=True, use_container_width=True)
 
     with col2:
-        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Salud financiera</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Salud financiera</div>", unsafe_allow_html=True)
+        with st.expander("Que es la salud financiera"):
+            st.markdown("""
+- **Deuda/Capital**: cuanta deuda tiene la empresa en relacion a su capital propio.
+  Por debajo de 0.5x es baja y comoda. Por encima de 3x empieza a ser preocupante.
+  Una empresa muy endeudada es fragil: si el negocio flojea o suben los tipos de interes,
+  puede tener serios problemas para pagar sus deudas.
+
+- **Quick Ratio**: capacidad de pagar deudas a corto plazo con activos liquidos.
+  Por encima de 1 significa que puede cubrir sus deudas inmediatas sin problemas.
+  Por debajo de 1 puede tener tension de liquidez.
+
+- **Current Ratio**: similar al Quick Ratio pero incluyendo inventario.
+  Por encima de 1.5 es una posicion comoda. Por debajo de 1 es señal de alerta.
+
+- **Efectivo vs Deuda**: comparar ambos es clave. Una empresa con mucha deuda pero mas
+  efectivo todavia tiene margen. El problema es cuando la deuda supera ampliamente al efectivo.
+            """)
         bal = bal_list[0] if bal_list else {}
         total_debt = safe_float(bal.get("totalDebt"))
         total_cash = safe_float(bal.get("cashAndCashEquivalents"))
@@ -578,7 +661,28 @@ with tab2:
             st.info("Datos insuficientes para calcular el valor intrinseco.")
 
     if fcf_hist:
-        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1.5rem 0 0.75rem'>Flujo de caja historico</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1.5rem 0 0.5rem'>Flujo de caja historico</div>", unsafe_allow_html=True)
+        with st.expander("Por que es el flujo de caja el dato mas importante"):
+            st.markdown("""
+El **Free Cash Flow (FCF)** es el dinero real que genera la empresa despues de pagar
+todas sus inversiones en activos (maquinaria, tecnologia, infraestructura).
+
+**Por que importa mas que el beneficio contable:**
+El beneficio neto puede manipularse con criterios contables (amortizaciones, provisiones...).
+El flujo de caja es mucho mas dificil de falsear porque es dinero que entra y sale de verdad.
+
+**Como leer el grafico:**
+- FCF **creciente año a año**: el negocio se fortalece y genera cada vez mas caja real
+- FCF **estable y positivo**: negocio solido y predecible, ideal para inversores de valor
+- FCF **negativo**: la empresa quema caja. Puede ser normal en fases de inversion fuerte
+  (Amazon durante años tuvo FCF negativo mientras construia su infraestructura)
+- FCF **negativo y sin crecer**: señal de alerta seria
+
+**La diferencia entre FCF y Cash Flow Operativo:**
+El operativo es el dinero generado por el negocio antes de inversiones.
+El FCF descuenta las inversiones (capex). Un FCF alto con poco capex indica un negocio
+que no necesita reinvertir mucho para seguir creciendo → maxima eficiencia.
+            """)
         fig3 = go.Figure()
         anos = [d["year"] for d in fcf_hist]
         fcfs = [d["fcf"]/1e9 for d in fcf_hist]
@@ -596,8 +700,45 @@ with tab2:
         st.plotly_chart(fig3, use_container_width=True)
 
 with tab3:
-    st.markdown("<div style='background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.2);border-radius:10px;padding:0.75rem 1rem;font-size:13px;color:#8892B0;margin-bottom:1rem'>El valor de mercado cambia cada segundo. Esta influido por emociones, noticias y rumores.</div>", unsafe_allow_html=True)
+    st.markdown("<div style='background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.2);border-radius:10px;padding:0.75rem 1rem;font-size:13px;color:#8892B0;margin-bottom:1rem'>El valor de mercado cambia cada segundo. Esta influido por emociones, noticias y rumores — no siempre por los numeros reales.</div>", unsafe_allow_html=True)
 
+    with st.expander("Valor de mercado vs valor fundamental: la diferencia clave"):
+        st.markdown("""
+**El valor de mercado** es simplemente lo que alguien esta dispuesto a pagar ahora mismo.
+Sube cuando hay optimismo, baja cuando hay miedo. No siempre refleja la realidad del negocio.
+
+**Por que se separan precio y valor fundamental:**
+- Noticias puntuales (buenos o malos resultados, cambios de CEO, regulacion)
+- Cambios en el sentimiento general del mercado (subidas de tipos, recesion)
+- Modas y narrativas (la IA, las energias renovables, el metaverso...)
+- Ventas forzadas por fondos que necesitan liquidez
+
+**Lo que debes vigilar en el valor de mercado:**
+- Donde esta el precio respecto a su rango de 52 semanas
+- Si el precio esta por encima o debajo de sus medias moviles (tendencia)
+- El volumen: un movimiento con mucho volumen es mas significativo que uno con poco
+- Las posiciones cortas: si muchos profesionales apuestan a la baja, hay que ser cauteloso
+        """)
+
+    with st.expander("Que son la beta y las medias moviles"):
+        st.markdown("""
+- **Beta**: mide cuanto se mueve esta accion en relacion al mercado general (S&P 500).
+  Beta 1.0 = se mueve igual que el mercado.
+  Beta 1.5 = si el mercado sube 10%, esta accion tiende a subir 15% (y viceversa al bajar).
+  Beta 0.5 = menos volatil, se mueve la mitad que el mercado.
+  Beta negativa = se mueve en direccion opuesta al mercado (raro, tipico del oro o bonos).
+
+- **Media 50 dias (MA50)**: precio promedio de los ultimos 50 dias de trading.
+  Si el precio actual esta por encima → tendencia alcista a corto plazo.
+  Si esta por debajo → tendencia bajista a corto plazo.
+
+- **Media 200 dias (MA200)**: tendencia de largo plazo. La mas importante para inversores.
+  Precio por encima de la MA200 → el activo esta en tendencia alcista de fondo.
+  Precio por debajo → tendencia bajista de fondo.
+
+- **Golden Cross**: cuando la MA50 supera a la MA200 → senal alcista fuerte de medio plazo.
+- **Death Cross**: cuando la MA50 cae por debajo de la MA200 → senal bajista.
+        """)
     metrics_mkt = [
         ("Precio actual", moneda + " " + str(round(precio, 2)), signo + str(round(cambio_pct, 2)) + "% hoy", "#4ADE80" if cambio_pct >= 0 else "#F87171"),
         ("Max 52 semanas", moneda + " " + str(round(w52h, 2)) if w52h else "N/D", str(round((precio-w52h)/w52h*100, 1)) + "% desde max" if w52h else "", "#F87171"),
@@ -618,7 +759,21 @@ with tab3:
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Volumen de negociacion</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Volumen de negociacion</div>", unsafe_allow_html=True)
+        with st.expander("Por que importa el volumen"):
+            st.markdown("""
+El volumen es el numero de acciones que se compran y venden en un periodo.
+Es la forma de medir la **conviccion** detras de un movimiento de precio.
+
+- **Precio sube + volumen alto**: mucha gente comprando con conviccion → senal fuerte alcista
+- **Precio sube + volumen bajo**: pocos compradores → movimiento debil, puede revertir
+- **Precio baja + volumen alto**: ventas masivas, puede indicar panico o salida institucional
+- **Precio baja + volumen bajo**: pocos vendedores, caida sin conviccion → puede recuperar
+
+Un **ratio > 2x** respecto al volumen medio indica algo inusual: noticias importantes,
+entrada o salida de un fondo grande, o un evento corporativo relevante.
+            """)
+
         vol_ratio = round(vol / avg_vol, 2) if avg_vol and vol else 0
         vol_color = "#4ADE80" if vol_ratio > 1.5 else "#FBBF24" if vol_ratio > 0.8 else "#F87171"
         st.markdown(
@@ -655,6 +810,38 @@ with tab3:
                 "</div>", unsafe_allow_html=True)
 
 with tab4:
+    with st.expander("Como funciona el sistema de puntuacion"):
+        st.markdown("""
+El sistema evalua la accion en **5 dimensiones**, cada una con un maximo de 20 puntos.
+
+**1. Valoracion relativa (PER/P/B)** — Estas pagando un precio razonable?
+Compara el precio actual con los beneficios y activos de la empresa.
+Un precio bajo respecto a los beneficios (PER bajo) suma puntos. Uno muy alto los resta.
+
+**2. Calidad del negocio (ROE/margen)** — Es un buen negocio?
+Mide si la empresa genera dinero de verdad y con eficiencia.
+Un ROE alto y margen neto solido indican un negocio con ventaja competitiva.
+
+**3. Salud financiera (deuda)** — Puede aguantar una crisis?
+Una empresa con poca deuda es resiliente. Con mucha deuda es fragil ante adversidades.
+En entornos de tipos de interes altos, la deuda alta puede volverse un problema grave.
+
+**4. Momentum y precio relativo** — Como esta el precio respecto a sus niveles historicos?
+Si el precio esta cerca de minimos anuales con buenos fundamentales, suma puntos.
+Si esta en maximos historicos con poco margen, resta puntos.
+
+**5. Brecha DCF (precio vs intrinseco)** — Cuanto vale realmente vs cuanto cuesta?
+Esta es la dimension mas importante. Si el precio esta por debajo del valor intrinseco
+calculado por DCF/Graham, hay margen de seguridad → suma muchos puntos.
+
+**Escala final:**
+- 65-100 puntos → COMPRAR: hay margen de seguridad claro
+- 40-64 puntos → MANTENER: valoracion justa, sin ventaja clara
+- 0-39 puntos → VENDER: precio significativamente por encima del valor real
+
+**Importante**: este sistema es una herramienta de apoyo, no una recomendacion financiera.
+Siempre combina este analisis con tu propio juicio y contexto del sector.
+        """)
     col1, col2 = st.columns([1, 2])
     with col1:
         st.markdown(
