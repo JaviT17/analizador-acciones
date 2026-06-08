@@ -1,5 +1,9 @@
+fastapi
+uvicorn[standard]
 streamlit
+alpha_vantage
 pandas
+python-dotenv
+pydantic
 plotly
-requests
 
