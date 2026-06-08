@@ -2,14 +2,14 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-
+ 
 st.set_page_config(
     page_title="StockAnalyzer Pro",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
+ 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -24,14 +24,14 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 [data-testid="stMetricLabel"] { font-size: 11px !important; color: #8892B0 !important; text-transform: uppercase; letter-spacing: 1px; }
 </style>
 """, unsafe_allow_html=True)
-
+ 
 try:
     FMP_KEY = st.secrets["FMP_API_KEY"]
-except:
+except Exception as e:
     FMP_KEY = "demo"
-
+ 
 FMP_BASE = "https://financialmodelingprep.com/api/v3"
-
+ 
 def fmp_get(endpoint, params={}):
     params["apikey"] = FMP_KEY
     try:
@@ -42,46 +42,46 @@ def fmp_get(endpoint, params={}):
         return data
     except:
         return None
-
+ 
 @st.cache_data(ttl=900)
 def get_quote(ticker):
     return fmp_get("/quote/" + ticker)
-
+ 
 @st.cache_data(ttl=3600)
 def get_profile(ticker):
     return fmp_get("/profile/" + ticker)
-
+ 
 @st.cache_data(ttl=3600)
 def get_ratios(ticker):
     return fmp_get("/ratios-ttm/" + ticker)
-
+ 
 @st.cache_data(ttl=3600)
 def get_cashflow(ticker):
     return fmp_get("/cash-flow-statement/" + ticker, {"limit": 5})
-
+ 
 @st.cache_data(ttl=3600)
 def get_income(ticker):
     return fmp_get("/income-statement/" + ticker, {"limit": 5})
-
+ 
 @st.cache_data(ttl=3600)
 def get_balance(ticker):
     return fmp_get("/balance-sheet-statement/" + ticker, {"limit": 1})
-
+ 
 @st.cache_data(ttl=3600)
 def get_history(ticker):
     return fmp_get("/historical-price-full/" + ticker, {"serietype": "line"})
-
+ 
 @st.cache_data(ttl=3600)
 def get_analyst(ticker):
     return fmp_get("/analyst-stock-recommendations/" + ticker, {"limit": 1})
-
+ 
 @st.cache_data(ttl=3600)
 def search_company(query):
     return fmp_get("/search", {"query": query, "limit": 10})
-
+ 
 if "ticker_seleccionado" not in st.session_state:
     st.session_state.ticker_seleccionado = "AAPL"
-
+ 
 st.markdown("""
 <div style='display:flex;align-items:center;gap:12px;margin-bottom:0.25rem'>
     <span style='font-size:28px;font-weight:700;color:#E6F1FF;letter-spacing:-0.5px'>Stock</span>
@@ -90,7 +90,7 @@ st.markdown("""
 </div>
 <p style='color:#8892B0;font-size:13px;margin-bottom:1.5rem'>Analisis fundamental + tecnico · Alertas inteligentes · Cobertura global</p>
 """, unsafe_allow_html=True)
-
+ 
 col_search, col_ticker, col_btn = st.columns([2.5, 1.5, 0.8])
 with col_search:
     busqueda = st.text_input("", placeholder="Buscar empresa: Apple, Inditex, LVMH...", label_visibility="collapsed")
@@ -100,7 +100,7 @@ with col_ticker:
     st.session_state.ticker_seleccionado = ticker_input
 with col_btn:
     analizar = st.button("Analizar", type="primary", use_container_width=True)
-
+ 
 if busqueda:
     with st.spinner("Buscando..."):
         results = search_company(busqueda)
@@ -123,7 +123,7 @@ if busqueda:
                         st.rerun()
         else:
             st.warning("Sin resultados. Prueba el ticker directamente.")
-
+ 
 with st.expander("Guia de sufijos por mercado"):
     st.markdown("""
 | Mercado | Sufijo | Ejemplo |
@@ -138,7 +138,12 @@ with st.expander("Guia de sufijos por mercado"):
 | Japon | `.T` | `7203.T` Toyota |
 | Hong Kong | `.HK` | `0700.HK` Tencent |
     """)
-
+ 
+with st.expander("Debug — Estado de la API (quitar cuando funcione)"):
+    st.write("Clave cargada:", FMP_KEY[:8] + "..." if FMP_KEY and FMP_KEY != "demo" else "DEMO — no configurada")
+    test = fmp_get("/quote/AAPL")
+    st.write("Test AAPL:", test)
+ 
 if not analizar:
     st.markdown("""
     <div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:16px;padding:3rem;text-align:center;margin-top:2rem'>
@@ -148,7 +153,7 @@ if not analizar:
     </div>
     """, unsafe_allow_html=True)
     st.stop()
-
+ 
 with st.spinner("Cargando datos..."):
     quote_list  = get_quote(ticker_input)
     profile_list = get_profile(ticker_input)
@@ -158,25 +163,25 @@ with st.spinner("Cargando datos..."):
     bal_list     = get_balance(ticker_input)
     hist_data    = get_history(ticker_input)
     analyst_list = get_analyst(ticker_input)
-
+ 
 if not quote_list or not profile_list:
     st.error("No se encontraron datos para **" + ticker_input + "**. Verifica el ticker.")
     if FMP_KEY == "demo":
         st.warning("Estas usando la clave demo. Registrate en financialmodelingprep.com para obtener tu clave gratuita.")
     st.stop()
-
+ 
 q  = quote_list[0] if quote_list else {}
 p  = profile_list[0] if profile_list else {}
 r  = ratios_list[0] if ratios_list else {}
 an = analyst_list[0] if analyst_list else {}
-
+ 
 def safe_float(val, default=None):
     try:
         v = float(val)
         return v if v != 0 else default
     except:
         return default
-
+ 
 precio        = safe_float(q.get("price"), 0)
 cambio_pct    = safe_float(q.get("changesPercentage"), 0)
 nombre        = p.get("companyName", ticker_input)
@@ -203,7 +208,7 @@ media200      = safe_float(p.get("priceAvg200") or q.get("priceAvg200"))
 vol           = safe_float(q.get("volume"))
 avg_vol       = safe_float(q.get("avgVolume"))
 fcf_company   = safe_float(p.get("lastDiv"))
-
+ 
 hist_prices = []
 hist_dates  = []
 if hist_data and "historical" in hist_data:
@@ -211,7 +216,7 @@ if hist_data and "historical" in hist_data:
     historical = list(reversed(historical))
     hist_dates  = [h["date"] for h in historical]
     hist_prices = [h["close"] for h in historical]
-
+ 
 fcf_hist = []
 if cf_list:
     for rep in cf_list[:5]:
@@ -223,7 +228,7 @@ if cf_list:
                 fcf_hist.append({"year": yr, "fcf": fcf, "op": op or 0})
         except:
             pass
-
+ 
 if eps and eps > 0:
     g = 0.07
     if per:
@@ -232,13 +237,13 @@ if eps and eps > 0:
     intrinseco = eps * (8.5 + 2 * g * 100)
 else:
     intrinseco = None
-
+ 
 dcf_value = safe_float(p.get("dcf"))
 if dcf_value and dcf_value > 0:
     intrinseco = dcf_value
-
+ 
 diff_pct = ((precio - intrinseco) / intrinseco * 100) if intrinseco and precio else None
-
+ 
 def sc_valoracion(per, pb):
     pts = 10
     if per:
@@ -251,7 +256,7 @@ def sc_valoracion(per, pb):
         elif pb < 3: pts += 2
         elif pb > 6: pts -= 3
     return max(0, min(20, pts))
-
+ 
 def sc_calidad(roe, margen):
     pts = 10
     if roe:
@@ -263,7 +268,7 @@ def sc_calidad(roe, margen):
         elif margen > 0.10: pts += 2
         elif margen < 0: pts -= 5
     return max(0, min(20, pts))
-
+ 
 def sc_financiera(deuda_cap):
     pts = 10
     if deuda_cap:
@@ -272,7 +277,7 @@ def sc_financiera(deuda_cap):
         elif deuda_cap < 3: pts += 1
         else: pts -= 5
     return max(0, min(20, pts))
-
+ 
 def sc_momentum(precio, w52h, w52l, target, media50, media200):
     pts = 10
     if w52h and w52l and w52h > w52l:
@@ -287,7 +292,7 @@ def sc_momentum(precio, w52h, w52l, target, media50, media200):
         if media50 > media200: pts += 2
         else: pts -= 2
     return max(0, min(20, pts))
-
+ 
 def sc_dcf(precio, intrinseco):
     pts = 10
     if intrinseco and intrinseco > 0:
@@ -298,23 +303,23 @@ def sc_dcf(precio, intrinseco):
         elif gap > -0.15: pts -= 2
         else: pts -= 7
     return max(0, min(20, pts))
-
+ 
 s1 = sc_valoracion(per, pb)
 s2 = sc_calidad(roe, margen)
 s3 = sc_financiera(deuda_cap)
 s4 = sc_momentum(precio, w52h, w52l, price_target, media50, media200)
 s5 = sc_dcf(precio, intrinseco)
 total = s1 + s2 + s3 + s4 + s5
-
+ 
 if total >= 65:
     rec = "COMPRAR"; color_final = "#4ADE80"; bg_final = "rgba(74,222,128,0.1)"; border_final = "#4ADE80"
 elif total >= 40:
     rec = "MANTENER"; color_final = "#FBBF24"; bg_final = "rgba(251,191,36,0.1)"; border_final = "#FBBF24"
 else:
     rec = "VENDER"; color_final = "#F87171"; bg_final = "rgba(248,113,113,0.1)"; border_final = "#F87171"
-
+ 
 alertas = []
-
+ 
 if intrinseco and diff_pct is not None:
     if diff_pct < -30:
         alertas.append({"tipo": "OPORTUNIDAD FUERTE", "color": "#4ADE80", "bg": "rgba(74,222,128,0.08)", "icono": "🟢",
@@ -336,25 +341,25 @@ if intrinseco and diff_pct is not None:
             "titulo": "Precio " + str(round(diff_pct)) + "% por encima del valor fundamental",
             "que_hacer": "No es el mejor momento de entrada. Vigila con stop-loss si ya tienes posicion.",
             "por_que": "Prima del " + str(round(diff_pct)) + "% sobre el intrinseco (" + moneda + " " + str(round(intrinseco, 2)) + ")."})
-
+ 
 if w52h and precio > w52h * 0.95:
     alertas.append({"tipo": "PRECIO EN MAXIMOS ANUALES", "color": "#F87171", "bg": "rgba(248,113,113,0.08)", "icono": "🔴",
         "titulo": "Precio cerca del maximo de 52 semanas",
         "que_hacer": "Prudencia. No es buen momento de entrada salvo que el fundamental lo justifique.",
         "por_que": "A " + moneda + " " + str(round(precio, 2)) + " solo queda un " + str(round((w52h-precio)/w52h*100, 1)) + "% para el maximo anual."})
-
+ 
 if w52l and precio < w52l * 1.10 and s2 >= 14:
     alertas.append({"tipo": "MINIMOS CON NEGOCIO SOLIDO", "color": "#4ADE80", "bg": "rgba(74,222,128,0.08)", "icono": "🟢",
         "titulo": "Precio en minimos anuales pero el negocio es de calidad",
         "que_hacer": "Interesante para acumular gradualmente.",
         "por_que": "Precio cerca del minimo (" + moneda + " " + str(round(w52l, 2)) + ") con calidad de negocio " + str(s2) + "/20."})
-
+ 
 if deuda_cap and deuda_cap > 3:
     alertas.append({"tipo": "RIESGO FINANCIERO ELEVADO", "color": "#F87171", "bg": "rgba(248,113,113,0.08)", "icono": "🔴",
         "titulo": "Nivel de deuda muy por encima de la media",
         "que_hacer": "Incorpora este riesgo. La deuda alta es un multiplicador de riesgos en entornos de tipos altos.",
         "por_que": "Deuda/Capital: " + str(round(deuda_cap, 2)) + "x. Por encima de 2x empieza a ser preocupante."})
-
+ 
 if media50 and media200:
     if media50 > media200 * 1.02:
         alertas.append({"tipo": "GOLDEN CROSS — TENDENCIA ALCISTA", "color": "#34D399", "bg": "rgba(52,211,153,0.08)", "icono": "🟡",
@@ -366,11 +371,11 @@ if media50 and media200:
             "titulo": "Media 50d por debajo de media 200d",
             "que_hacer": "Senal tecnica negativa. Espera confirmacion de giro antes de entrar.",
             "por_que": "MA50 (" + str(round(media50, 2)) + ") < MA200 (" + str(round(media200, 2)) + ")."})
-
+ 
 color_cambio = "#4ADE80" if cambio_pct >= 0 else "#F87171"
 signo = "+" if cambio_pct >= 0 else ""
 cambio_arrow = "▲" if cambio_pct >= 0 else "▼"
-
+ 
 st.markdown(
     "<div class='main-header'>"
     "<div style='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem'>"
@@ -384,7 +389,7 @@ st.markdown(
     "<div style='font-size:36px;font-weight:700;color:#E6F1FF'>" + moneda + " " + str(round(precio, 2)) + "</div>"
     "<div style='font-size:16px;font-weight:500;color:" + color_cambio + "'>" + cambio_arrow + " " + signo + str(round(cambio_pct, 2)) + "% hoy</div>"
     "</div></div></div>", unsafe_allow_html=True)
-
+ 
 if alertas:
     st.markdown("<div style='font-size:13px;font-weight:600;color:#8892B0;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.75rem'>⚡ " + str(len(alertas)) + " Alerta" + ("s" if len(alertas) > 1 else "") + " detectada" + ("s" if len(alertas) > 1 else "") + "</div>", unsafe_allow_html=True)
     for a in alertas:
@@ -397,11 +402,11 @@ if alertas:
             "</div>", unsafe_allow_html=True)
 else:
     st.markdown("<div style='background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.3);border-radius:12px;padding:1rem 1.5rem;color:#8892B0;font-size:13px'>Sin alertas destacadas. La accion se encuentra en zona de valoracion neutra.</div>", unsafe_allow_html=True)
-
+ 
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
+ 
 tab1, tab2, tab3, tab4 = st.tabs(["Resumen", "Valor fundamental", "Valor de mercado", "Puntuacion"])
-
+ 
 with tab1:
     metrics = [
         ("Precio actual", moneda + " " + str(round(precio, 2)), ""),
@@ -420,7 +425,7 @@ with tab1:
                 "<div class='value'>" + value + "</div>"
                 + ("<div class='sub'>" + sub + "</div>" if sub else "")
                 + "</div>", unsafe_allow_html=True)
-
+ 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -459,16 +464,16 @@ with tab1:
 - **Linea verde discontinua**: valor intrinseco estimado por DCF/Graham (lo que deberia valer)
 - **Linea amarilla punteada**: precio objetivo medio de los analistas profesionales
 - **Linea gris punteada**: media movil de 200 dias (tendencia de largo plazo)
-
+ 
 **La clave esta en la relacion entre la linea morada y la verde:**
 - Precio muy por DEBAJO de la verde → el mercado infravalora la empresa → posible oportunidad
 - Precio muy por ENCIMA de la verde → el mercado sobrevalora la empresa → precaucion
 - Precio cerca de la verde → valoracion justa
-
+ 
 Si el precio cruza la MA200 al alza con volumen → señal alcista de largo plazo.
 Si la cruza a la baja → señal bajista de largo plazo.
             """)
-
+ 
     with col2:
         st.markdown("<div style='font-size:14px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Posicion en rango anual</div>", unsafe_allow_html=True)
         if w52h and w52l and w52h != w52l:
@@ -488,7 +493,7 @@ Si la cruza a la baja → señal bajista de largo plazo.
                 "<div style='font-size:11px;color:#475569;margin-top:8px;text-align:center'>"
                 + ("Cerca de minimos — margen de subida" if pos_pct < 30 else "Cerca de maximos — poco margen" if pos_pct > 80 else "Zona media del rango") +
                 "</div></div>", unsafe_allow_html=True)
-
+ 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:14px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Comparativa de precios clave</div>", unsafe_allow_html=True)
     labels_bar = ["Min 52s", "Precio actual", "Intrinseco", "Obj. analistas", "Max 52s"]
@@ -507,28 +512,28 @@ Si la cruza a la baja → señal bajista de largo plazo.
         showlegend=False
     )
     st.plotly_chart(fig2, use_container_width=True)
-
+ 
 with tab2:
     st.markdown("<div style='background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.2);border-radius:10px;padding:0.75rem 1rem;font-size:13px;color:#8892B0;margin-bottom:1rem'>El valor fundamental mide la salud REAL del negocio. Estos numeros cambian trimestralmente, no cada dia. Son los que importan para saber si una empresa vale lo que cuesta.</div>", unsafe_allow_html=True)
-
+ 
     with st.expander("Que es el valor fundamental y por que importa"):
         st.markdown("""
 Mientras el precio de mercado sube y baja cada segundo segun el humor de los inversores,
 el valor fundamental cambia lentamente y refleja la realidad del negocio.
-
+ 
 **La idea clave de Benjamin Graham** (mentor de Warren Buffett):
 > "A corto plazo el mercado es una maquina de votar. A largo plazo es una maquina de pesar."
-
+ 
 Es decir: a corto plazo gana la popularidad y el miedo. A largo plazo, lo que pesa de verdad
 son los numeros reales. Por eso comparar precio vs fundamental es tan util.
-
+ 
 **Cuando el precio esta muy por debajo del fundamental** → el mercado esta siendo irracional
 y hay una oportunidad de compra con margen de seguridad.
-
+ 
 **Cuando el precio esta muy por encima** → el mercado descuenta demasiado optimismo
 y el riesgo de correccion es alto.
         """)
-
+ 
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Valoracion</div>", unsafe_allow_html=True)
@@ -538,14 +543,14 @@ y el riesgo de correccion es alto.
   Si el PER es 20x significa que pagas 20 años de beneficios actuales.
   Menos de 15x suele ser barato. Mas de 30x suele ser caro.
   Ojo: un PER alto puede estar justificado si la empresa crece muy rapido.
-
+ 
 - **P/Book (Precio/Valor contable)**: cuanto pagas vs lo que valen los activos netos.
   Si P/Book es menor que 1, pagas menos que el valor de los activos → muy barato.
   Por encima de 6x el mercado paga una prima muy alta sobre los activos reales.
-
+ 
 - **P/Ventas**: cuantas veces pagas los ingresos anuales de la empresa.
   Util para empresas que aun no tienen beneficios (startups, empresas en crecimiento).
-
+ 
 - **Regla general**: estos ratios solo tienen sentido comparados con el sector.
   Un PER de 30x es caro para un banco pero puede ser normal para una tecnologica.
             """)
@@ -564,21 +569,21 @@ y el riesgo de correccion es alto.
             ]
         })
         st.dataframe(df_val, hide_index=True, use_container_width=True)
-
+ 
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.5rem'>Rentabilidad</div>", unsafe_allow_html=True)
         with st.expander("Que mide la rentabilidad"):
             st.markdown("""
 - **ROE (Return on Equity)**: beneficio que genera la empresa por cada euro de capital propio.
   Por encima del 15% indica que el negocio es eficiente generando valor para el accionista.
   Por debajo del 5% es una señal de negocio debil o con mucho capital ocioso.
-
+ 
 - **ROA (Return on Assets)**: beneficio sobre el total de activos. Mide la eficiencia global.
   Por encima del 10% es bueno. Muy util para comparar empresas del mismo sector.
-
+ 
 - **Margen neto**: de cada 100 euros que ingresa la empresa, cuanto queda como beneficio final.
   Un margen del 20% significa que de 100 euros vendidos, 20 son beneficio neto.
   Margenes negativos indican que la empresa pierde dinero con su actividad principal.
-
+ 
 - **Margen bruto**: rentabilidad antes de gastos generales. Indica la fortaleza del negocio central.
   Un margen bruto alto (>40%) suele indicar un negocio con ventaja competitiva (pricing power).
             """)
@@ -599,7 +604,7 @@ y el riesgo de correccion es alto.
             ]
         })
         st.dataframe(df_rent, hide_index=True, use_container_width=True)
-
+ 
     with col2:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.5rem'>Salud financiera</div>", unsafe_allow_html=True)
         with st.expander("Que es la salud financiera"):
@@ -608,14 +613,14 @@ y el riesgo de correccion es alto.
   Por debajo de 0.5x es baja y comoda. Por encima de 3x empieza a ser preocupante.
   Una empresa muy endeudada es fragil: si el negocio flojea o suben los tipos de interes,
   puede tener serios problemas para pagar sus deudas.
-
+ 
 - **Quick Ratio**: capacidad de pagar deudas a corto plazo con activos liquidos.
   Por encima de 1 significa que puede cubrir sus deudas inmediatas sin problemas.
   Por debajo de 1 puede tener tension de liquidez.
-
+ 
 - **Current Ratio**: similar al Quick Ratio pero incluyendo inventario.
   Por encima de 1.5 es una posicion comoda. Por debajo de 1 es señal de alerta.
-
+ 
 - **Efectivo vs Deuda**: comparar ambos es clave. Una empresa con mucha deuda pero mas
   efectivo todavia tiene margen. El problema es cuando la deuda supera ampliamente al efectivo.
             """)
@@ -641,7 +646,7 @@ y el riesgo de correccion es alto.
             ]
         })
         st.dataframe(df_fin, hide_index=True, use_container_width=True)
-
+ 
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.75rem'>Valor intrinseco (DCF)</div>", unsafe_allow_html=True)
         if intrinseco:
             diff_color = "#4ADE80" if diff_pct and diff_pct < 0 else "#F87171"
@@ -659,25 +664,25 @@ y el riesgo de correccion es alto.
                 "</div></div>", unsafe_allow_html=True)
         else:
             st.info("Datos insuficientes para calcular el valor intrinseco.")
-
+ 
     if fcf_hist:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1.5rem 0 0.5rem'>Flujo de caja historico</div>", unsafe_allow_html=True)
         with st.expander("Por que es el flujo de caja el dato mas importante"):
             st.markdown("""
 El **Free Cash Flow (FCF)** es el dinero real que genera la empresa despues de pagar
 todas sus inversiones en activos (maquinaria, tecnologia, infraestructura).
-
+ 
 **Por que importa mas que el beneficio contable:**
 El beneficio neto puede manipularse con criterios contables (amortizaciones, provisiones...).
 El flujo de caja es mucho mas dificil de falsear porque es dinero que entra y sale de verdad.
-
+ 
 **Como leer el grafico:**
 - FCF **creciente año a año**: el negocio se fortalece y genera cada vez mas caja real
 - FCF **estable y positivo**: negocio solido y predecible, ideal para inversores de valor
 - FCF **negativo**: la empresa quema caja. Puede ser normal en fases de inversion fuerte
   (Amazon durante años tuvo FCF negativo mientras construia su infraestructura)
 - FCF **negativo y sin crecer**: señal de alerta seria
-
+ 
 **La diferencia entre FCF y Cash Flow Operativo:**
 El operativo es el dinero generado por el negocio antes de inversiones.
 El FCF descuenta las inversiones (capex). Un FCF alto con poco capex indica un negocio
@@ -698,28 +703,28 @@ que no necesita reinvertir mucho para seguir creciendo → maxima eficiencia.
             hovermode="x unified"
         )
         st.plotly_chart(fig3, use_container_width=True)
-
+ 
 with tab3:
     st.markdown("<div style='background:rgba(108,99,255,0.08);border:1px solid rgba(108,99,255,0.2);border-radius:10px;padding:0.75rem 1rem;font-size:13px;color:#8892B0;margin-bottom:1rem'>El valor de mercado cambia cada segundo. Esta influido por emociones, noticias y rumores — no siempre por los numeros reales.</div>", unsafe_allow_html=True)
-
+ 
     with st.expander("Valor de mercado vs valor fundamental: la diferencia clave"):
         st.markdown("""
 **El valor de mercado** es simplemente lo que alguien esta dispuesto a pagar ahora mismo.
 Sube cuando hay optimismo, baja cuando hay miedo. No siempre refleja la realidad del negocio.
-
+ 
 **Por que se separan precio y valor fundamental:**
 - Noticias puntuales (buenos o malos resultados, cambios de CEO, regulacion)
 - Cambios en el sentimiento general del mercado (subidas de tipos, recesion)
 - Modas y narrativas (la IA, las energias renovables, el metaverso...)
 - Ventas forzadas por fondos que necesitan liquidez
-
+ 
 **Lo que debes vigilar en el valor de mercado:**
 - Donde esta el precio respecto a su rango de 52 semanas
 - Si el precio esta por encima o debajo de sus medias moviles (tendencia)
 - El volumen: un movimiento con mucho volumen es mas significativo que uno con poco
 - Las posiciones cortas: si muchos profesionales apuestan a la baja, hay que ser cauteloso
         """)
-
+ 
     with st.expander("Que son la beta y las medias moviles"):
         st.markdown("""
 - **Beta**: mide cuanto se mueve esta accion en relacion al mercado general (S&P 500).
@@ -727,15 +732,15 @@ Sube cuando hay optimismo, baja cuando hay miedo. No siempre refleja la realidad
   Beta 1.5 = si el mercado sube 10%, esta accion tiende a subir 15% (y viceversa al bajar).
   Beta 0.5 = menos volatil, se mueve la mitad que el mercado.
   Beta negativa = se mueve en direccion opuesta al mercado (raro, tipico del oro o bonos).
-
+ 
 - **Media 50 dias (MA50)**: precio promedio de los ultimos 50 dias de trading.
   Si el precio actual esta por encima → tendencia alcista a corto plazo.
   Si esta por debajo → tendencia bajista a corto plazo.
-
+ 
 - **Media 200 dias (MA200)**: tendencia de largo plazo. La mas importante para inversores.
   Precio por encima de la MA200 → el activo esta en tendencia alcista de fondo.
   Precio por debajo → tendencia bajista de fondo.
-
+ 
 - **Golden Cross**: cuando la MA50 supera a la MA200 → senal alcista fuerte de medio plazo.
 - **Death Cross**: cuando la MA50 cae por debajo de la MA200 → senal bajista.
         """)
@@ -755,7 +760,7 @@ Sube cuando hay optimismo, baja cuando hay miedo. No siempre refleja la realidad
                 "<div class='value'>" + value + "</div>"
                 + ("<div style='font-size:11px;color:" + color_sub + ";margin-top:4px'>" + sub + "</div>" if sub else "")
                 + "</div>", unsafe_allow_html=True)
-
+ 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
@@ -764,16 +769,16 @@ Sube cuando hay optimismo, baja cuando hay miedo. No siempre refleja la realidad
             st.markdown("""
 El volumen es el numero de acciones que se compran y venden en un periodo.
 Es la forma de medir la **conviccion** detras de un movimiento de precio.
-
+ 
 - **Precio sube + volumen alto**: mucha gente comprando con conviccion → senal fuerte alcista
 - **Precio sube + volumen bajo**: pocos compradores → movimiento debil, puede revertir
 - **Precio baja + volumen alto**: ventas masivas, puede indicar panico o salida institucional
 - **Precio baja + volumen bajo**: pocos vendedores, caida sin conviccion → puede recuperar
-
+ 
 Un **ratio > 2x** respecto al volumen medio indica algo inusual: noticias importantes,
 entrada o salida de un fondo grande, o un evento corporativo relevante.
             """)
-
+ 
         vol_ratio = round(vol / avg_vol, 2) if avg_vol and vol else 0
         vol_color = "#4ADE80" if vol_ratio > 1.5 else "#FBBF24" if vol_ratio > 0.8 else "#F87171"
         st.markdown(
@@ -788,7 +793,7 @@ entrada o salida de un fondo grande, o un evento corporativo relevante.
             "Ratio vs media: <span style='color:" + vol_color + ";font-weight:600'>" + str(vol_ratio) + "x</span>"
             + (" — Volumen inusualmente alto" if vol_ratio > 2 else " — Volumen normal" if vol_ratio > 0.8 else " — Volumen bajo") +
             "</div></div>", unsafe_allow_html=True)
-
+ 
     with col2:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:0.75rem'>Descripcion de la empresa</div>", unsafe_allow_html=True)
         desc = p.get("description", "")
@@ -797,7 +802,7 @@ entrada o salida de un fondo grande, o un evento corporativo relevante.
                 "<div style='background:#1A1D2E;border:1px solid #2D3561;border-radius:12px;padding:1.25rem;font-size:12px;color:#8892B0;line-height:1.7;max-height:150px;overflow:hidden'>"
                 + desc[:400] + "..."
                 + "</div>", unsafe_allow_html=True)
-
+ 
     alertas_mkt = [a for a in alertas if any(x in a["tipo"] for x in ["MAXIMOS", "MINIMOS", "CROSS", "CAIDA"])]
     if alertas_mkt:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin:1rem 0 0.5rem'>Alertas de mercado</div>", unsafe_allow_html=True)
@@ -808,37 +813,37 @@ entrada o salida de un fondo grande, o un evento corporativo relevante.
                 "<div style='font-size:13px;color:#E6F1FF;margin-top:4px'>" + a["titulo"] + "</div>"
                 "<div style='font-size:12px;color:#8892B0;margin-top:4px'>" + a["que_hacer"] + "</div>"
                 "</div>", unsafe_allow_html=True)
-
+ 
 with tab4:
     with st.expander("Como funciona el sistema de puntuacion"):
         st.markdown("""
 El sistema evalua la accion en **5 dimensiones**, cada una con un maximo de 20 puntos.
-
+ 
 **1. Valoracion relativa (PER/P/B)** — Estas pagando un precio razonable?
 Compara el precio actual con los beneficios y activos de la empresa.
 Un precio bajo respecto a los beneficios (PER bajo) suma puntos. Uno muy alto los resta.
-
+ 
 **2. Calidad del negocio (ROE/margen)** — Es un buen negocio?
 Mide si la empresa genera dinero de verdad y con eficiencia.
 Un ROE alto y margen neto solido indican un negocio con ventaja competitiva.
-
+ 
 **3. Salud financiera (deuda)** — Puede aguantar una crisis?
 Una empresa con poca deuda es resiliente. Con mucha deuda es fragil ante adversidades.
 En entornos de tipos de interes altos, la deuda alta puede volverse un problema grave.
-
+ 
 **4. Momentum y precio relativo** — Como esta el precio respecto a sus niveles historicos?
 Si el precio esta cerca de minimos anuales con buenos fundamentales, suma puntos.
 Si esta en maximos historicos con poco margen, resta puntos.
-
+ 
 **5. Brecha DCF (precio vs intrinseco)** — Cuanto vale realmente vs cuanto cuesta?
 Esta es la dimension mas importante. Si el precio esta por debajo del valor intrinseco
 calculado por DCF/Graham, hay margen de seguridad → suma muchos puntos.
-
+ 
 **Escala final:**
 - 65-100 puntos → COMPRAR: hay margen de seguridad claro
 - 40-64 puntos → MANTENER: valoracion justa, sin ventaja clara
 - 0-39 puntos → VENDER: precio significativamente por encima del valor real
-
+ 
 **Importante**: este sistema es una herramienta de apoyo, no una recomendacion financiera.
 Siempre combina este analisis con tu propio juicio y contexto del sector.
         """)
@@ -857,7 +862,7 @@ Siempre combina este analisis con tu propio juicio y contexto del sector.
             "<span style='color:#FBBF24'>●</span>  40–64 &nbsp; Mantener<br>"
             "<span style='color:#F87171'>●</span>  0–39 &nbsp;&nbsp; Vender"
             "</div></div>", unsafe_allow_html=True)
-
+ 
     with col2:
         st.markdown("<div style='font-size:13px;font-weight:600;color:#CCD6F6;margin-bottom:1rem'>Desglose por criterio</div>", unsafe_allow_html=True)
         criterios = [
@@ -888,6 +893,6 @@ Siempre combina este analisis con tu propio juicio y contexto del sector.
                 "</div>"
                 "<div style='font-size:11px;color:#475569'>" + detalle + "</div>"
                 "</div>", unsafe_allow_html=True)
-
+ 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:11px;color:#475569;text-align:center'>StockAnalyzer Pro · Datos via Financial Modeling Prep · Solo fines educativos · No constituye asesoramiento financiero</div>", unsafe_allow_html=True)
