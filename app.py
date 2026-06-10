@@ -30,7 +30,7 @@ def av_get(params):
     try:
         r = requests.get(AV_BASE, params=params, timeout=15)
         data = r.json()
-        if "Error Message" in str(data) or "Information" in str(data):
+        if isinstance(data, dict) and "Error Message" in data:
             return {}
         return data
     except Exception:
