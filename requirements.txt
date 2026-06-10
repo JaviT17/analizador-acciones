@@ -1,5 +1,9 @@
 streamlit
+yfinance
 pandas
 plotly
 requests
+beautifulsoup4
+lxml
+curl_cffi
 
